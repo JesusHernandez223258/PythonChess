@@ -13,6 +13,9 @@ class Game:
         self.game_state = GameState()
         self.running = True
 
+        self.selected = ()
+        self.clicks = []
+
     def load_images(self):
         pieces = ["bP", "bR", "bB", "bN", "bQ", "bK", "wP", "wR", "wB", "wN", "wQ", "wK"]
         for piece in pieces:
@@ -22,6 +25,22 @@ class Game:
         for e in pg.event.get():
             if e.type == pg.QUIT:
                 self.running = False
+            elif e.type == pg.MOUSEBUTTONDOWN:
+                loc = pg.mouse.get_pos()
+                col = loc[0] // SQ_SIZE
+                row = loc[1] // SQ_SIZE
+                if self.selected == (row, col):
+                    self.selected = ()
+                    self.clicks = []
+                else:
+                    self.selected = (row, col)
+                    self.clicks.append(self.selected)
+                if len(self.clicks) == 2:
+                    move = Move((self.clicks[0]), (self.clicks[1]), self.game_state.board)
+                    self.game_state.make_move(move)
+                    print(move.get_notation())
+                    self.selected = ()
+                    self.clicks = []
 
     def draw_board(self):
         colors = [pg.Color(DARK), pg.Color(LIGHT)]
@@ -49,10 +68,11 @@ class Game:
     def main(self):
         pg.init()
         self.load_images()
-        self.clock.tick(FPS)
+
         pg.display.set_caption(f"{self.title}-{self.clock.get_fps() :.1f}")
 
         while self.running:
             self.check_events()
             self.draw_game_state()
+            self.clock.tick(FPS)
             pg.display.flip()
