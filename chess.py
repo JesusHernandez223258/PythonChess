@@ -20,16 +20,25 @@ class GameState:
                                "B": self.bishop_moves, "Q": self.queen_moves, "K": self.king_moves}
         self.white_turn = True
         self.move_log = []
+        self.white_king_pos = (7, 4)
+        self.black_king_pos = (0, 4)
+        self.check_mate = False
+        self.stale_mate = False
 
     def make_move(self, move):
         """
         Hacer un movimiento
-        :param move:
+        :param move: movimiento a realizar
         """
         self.board[move.start_r][move.start_c] = "--"
         self.board[move.end_r][move.end_c] = move.piece_moved
         self.move_log.append(move)
         self.white_turn = not self.white_turn
+        #  Actualizar posición del rey
+        if move.piece_moved == "wK":
+            self.white_king_pos = (move.end_r, move.end_c)
+        elif move.piece_moved == "bK":
+            self.black_king_pos = (move.end_r, move.end_c)
 
     def undo_move(self):
         """
@@ -40,16 +49,59 @@ class GameState:
             self.board[move.end_r][move.end_c] = move.piece_capture
             self.board[move.start_r][move.start_c] = move.piece_moved
             self.white_turn = not self.white_turn
+            #  Actualizar posición del rey
+            if move.piece_moved == "wK":
+                self.white_king_pos = (move.start_r, move.start_c)
+            elif move.piece_moved == "bK":
+                self.black_king_pos = (move.start_r, move.start_c)
 
     def get_valid_moves(self):
         """
-        Movimientos considerando jaques
+        Calcula los movimientos considerando los posibles jaques
+        :return: Devuelve solo los movimientos válidos
         """
-        return self.get_possible_moves()
+        moves = self.get_possible_moves()
+        for i in range(len(moves)-1, -1, -1):
+            self.make_move(moves[i])
+            self.white_turn = not self.white_turn
+            if self.check():
+                moves.remove(moves[i])
+            self.white_turn = not self.white_turn
+            self.undo_move()
+        if len(moves) == 0:
+            if self.check():
+                self.check_mate = True
+            else:
+                self.stale_mate = True
+        else:
+            self.check_mate = False
+            self.stale_mate = False
+        return moves
 
-    def check(self):pass
+    def check(self):
+        """
+        Determina si hay jaque
+        :return: boolean
+        """
+        if self.white_turn:
+            return self.square_attacked(self.white_king_pos[0], self.white_king_pos[1])
+        else:
+            return self.square_attacked(self.black_king_pos[0], self.black_king_pos[1])
 
-    def square_attacked(self):pass
+    def square_attacked(self, r, c):
+        """
+        Determina si el enemigo puede atacar la casilla r, c
+        :param r:
+        :param c:
+        :return: boolean
+        """
+        self.white_turn = not self.white_turn
+        opp_moves = self.get_possible_moves()
+        self.white_turn = not self.white_turn
+        for move in opp_moves:
+            if move.end_r == r and move.end_c == c:
+                return True
+        return False
 
     def get_possible_moves(self):
         """
@@ -240,4 +292,3 @@ class Move:
         if isinstance(other, Move):
             return self.move_id == other.move_id
         return False
-

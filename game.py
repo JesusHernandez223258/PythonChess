@@ -19,7 +19,6 @@ class Game:
         self.animate = False
         self.running = True
         self.game_over = False
-
         self.selected = ()
         self.clicks = []
 
@@ -111,7 +110,7 @@ class Game:
         Marca la pieza seleccionada y sus movimientos válidos
         """
         if self.selected != ():
-            r, c = self.selected
+            r, c = self.selected[0], self.selected[1]
             if self.game_state.board[r][c][0] == ("w" if self.game_state.white_turn else "b"):
                 s = pg.Surface((SQ_SIZE, SQ_SIZE))
                 s.fill("yellow")
