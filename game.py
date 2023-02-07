@@ -2,7 +2,9 @@ from settings import *
 from chess import GameState, Move
 import pygame as pg
 
-#  Highlight el ultimo movimiento realizado
+#  Highlight el último movimiento realizado
+#  Highlight de diferente manera las capturas
+#  Preguntar promoción de peón
 
 
 class Game:
@@ -52,14 +54,15 @@ class Game:
                         self.clicks.append(self.selected)
                     if len(self.clicks) == 2:
                         move = Move((self.clicks[0]), (self.clicks[1]), self.game_state.board)
-                        if move in self.valid_moves:
-                            self.game_state.make_move(move)
-                            self.move_made = True
-                            self.animate = True
-                            print(f"{move.get_notation()} - {move.move_id}")
-                            self.selected = ()
-                            self.clicks = []
-                        else:
+                        for i in range(len(self.valid_moves)):
+                            if move == self.valid_moves[i]:
+                                self.game_state.make_move(self.valid_moves[i])
+                                self.move_made = True
+                                self.animate = True
+                                print(f"{move.get_notation()} - {move.move_id}")
+                                self.selected = ()
+                                self.clicks = []
+                        if not self.move_made:
                             self.clicks = [self.selected]
             elif e.type == pg.KEYDOWN:
                 if e.key == pg.K_LCTRL:

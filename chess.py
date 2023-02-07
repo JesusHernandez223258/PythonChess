@@ -24,6 +24,12 @@ class GameState:
         self.black_king_pos = (0, 4)
         self.check_mate = False
         self.stale_mate = False
+        self.enpassant_possible = ()
+        self.current_castling_rights = CastleRights(True, True, True, True)
+        self.castle_right_log = [CastleRights(self.current_castling_rights.white_ks,
+                                              self.current_castling_rights.black_ks,
+                                              self.current_castling_rights.white_qs,
+                                              self.current_castling_rights.black_qs)]
 
     def make_move(self, move):
         """
@@ -39,6 +45,32 @@ class GameState:
             self.white_king_pos = (move.end_r, move.end_c)
         elif move.piece_moved == "bK":
             self.black_king_pos = (move.end_r, move.end_c)
+        # pawn promotion
+        if move.pawn_promotion:
+            self.board[move.end_r][move.end_c] = move.piece_moved[0] + "Q"
+        # en passant
+        if move.enpassant_move:
+            self.board[move.start_r][move.end_c] = "--"
+        # actualizar enpassant_possible
+        if move.piece_moved[1] == "P" and abs(move.start_r - move.end_r) == 2:
+            self.enpassant_possible = ((move.start_r + move.end_r)//2, move.end_c)
+        else:
+            self.enpassant_possible = ()
+        # castling
+        if move.castle_move:
+            if move.end_c - move.start_c == 2:  # king side
+                self.board[move.end_r][move.end_c-1] = self.board[move.end_r][move.end_c+1]
+                self.board[move.end_r][move.end_c+1] = "--"
+            else:  # queen side
+                self.board[move.end_r][move.end_c+1] = self.board[move.end_r][move.end_c-2]
+                self.board[move.end_r][move.end_c-2] = "--"
+
+        # actualizar castle rights
+        self.update_castling(move)
+        self.castle_right_log.append(CastleRights(self.current_castling_rights.white_ks,
+                                                  self.current_castling_rights.black_ks,
+                                                  self.current_castling_rights.white_qs,
+                                                  self.current_castling_rights.black_qs))
 
     def undo_move(self):
         """
@@ -49,18 +81,75 @@ class GameState:
             self.board[move.end_r][move.end_c] = move.piece_capture
             self.board[move.start_r][move.start_c] = move.piece_moved
             self.white_turn = not self.white_turn
-            #  Actualizar posición del rey
+            #  actualizar posición del rey
             if move.piece_moved == "wK":
                 self.white_king_pos = (move.start_r, move.start_c)
             elif move.piece_moved == "bK":
                 self.black_king_pos = (move.start_r, move.start_c)
+            # deshacer enpassant
+            if move.enpassant_move:
+                self.board[move.end_r][move.end_c] = "--"
+                self.board[move.start_r][move.end_c] = move.piece_capture
+                self.enpassant_possible = (move.end_r, move.end_c)
+            # deshacer avance de 2 casillas (peón)
+            if move.piece_moved[1] == "P" and abs(move.end_r - move.start_r) == 2:
+                self.enpassant_possible = ()
+            # deshacer castle rights
+            self.castle_right_log.pop()
+            new_right = self.castle_right_log[-1]
+            self.current_castling_rights = CastleRights(new_right.white_ks, new_right.black_ks,
+                                                        new_right.white_qs, new_right.black_qs)
+
+            # deshacer castle move
+            if move.castle_move:
+                if move.end_c - move.start_c == 2:
+                    self.board[move.end_r][move.end_c+1] = self.board[move.end_r][move.end_c-1]
+                    self.board[move.end_r][move.end_c-1] = "--"
+                else:
+                    self.board[move.end_r][move.end_c-2] = self.board[move.end_r][move.end_c+1]
+                    self.board[move.end_r][move.end_c+1] = "--"
+
+    def update_castling(self, move):
+        """
+        Actualiza los derechos de castling
+        :param move: Movimiento a realizar
+        :return: Derechos de castling
+        """
+        if move.piece_moved == "wK":  # Rey blanco
+            self.current_castling_rights.white_ks = False
+            self.current_castling_rights.white_qs = False
+        elif move.piece_moved == "bK":  # Rey negro
+            self.current_castling_rights.black_ks = False
+            self.current_castling_rights.black_qs = False
+        elif move.piece_moved == "wR":  # Torre blanca
+            if move.start_r == 7:
+                if move.start_c == 0:
+                    self.current_castling_rights.white_qs = False
+                elif move.start_c == 7:
+                    self.current_castling_rights.white_ks = False
+        elif move.piece_moved == "bR":  # Torre negra
+            if move.start_r == 0:
+                if move.start_c == 0:
+                    self.current_castling_rights.black_qs = False
+                elif move.start_c == 7:
+                    self.current_castling_rights.black_ks = False
 
     def get_valid_moves(self):
         """
         Calcula los movimientos considerando los posibles jaques
         :return: Devuelve solo los movimientos válidos
         """
+        for log in self.castle_right_log:
+            print(log.white_ks, log.white_qs, log.black_ks, log.black_qs, end=", ")
+        print()
+        temp_enpassant = self.enpassant_possible
+        temp_castle_rights = CastleRights(self.current_castling_rights.white_ks, self.current_castling_rights.black_ks,
+                                          self.current_castling_rights.white_qs, self.current_castling_rights.black_qs)
         moves = self.get_possible_moves()
+        if self.white_turn:
+            self.get_castle_moves(self.white_king_pos[0], self.white_king_pos[1], moves)
+        else:
+            self.get_castle_moves(self.black_king_pos[0], self.black_king_pos[1], moves)
         for i in range(len(moves)-1, -1, -1):
             self.make_move(moves[i])
             self.white_turn = not self.white_turn
@@ -76,6 +165,8 @@ class GameState:
         else:
             self.check_mate = False
             self.stale_mate = False
+        self.enpassant_possible = temp_enpassant
+        self.current_castling_rights = temp_castle_rights
         return moves
 
     def check(self):
@@ -157,6 +248,37 @@ class GameState:
                 else:
                     break  # fuera de los límites
 
+    def get_castle_moves(self, r, c, moves):
+        """
+        Genera todos los movimientos válidos de castling
+        :param r: fila
+        :param c: columna
+        :param moves: lista de movimientos
+        :return: lista de movimientos actualizados
+        """
+        if self.square_attacked(r, c):  # verifica que no esté en jaque
+            return
+        if (self.white_turn and self.current_castling_rights.white_ks) or (not self.white_turn and self.current_castling_rights.black_ks):
+            self.get_ks_moves(r, c, moves)
+        if (self.white_turn and self.current_castling_rights.white_qs) or (not self.white_turn and self.current_castling_rights.black_qs):
+            self.get_qs_moves(r, c, moves)
+
+    def get_ks_moves(self, r, c, moves):
+        """
+        Movimientos del lado del rey
+        """
+        if self.board[r][c+1] == "--" and self.board[r][c+2] == "--":  # verifica que las casillas estén vacías
+            if not self.square_attacked(r, c+1) and not self.square_attacked(r, c+2):  # verifica casillas en jaque
+                moves.append(Move((r, c), (r, c+2), self.board, castle=True))
+
+    def get_qs_moves(self, r, c, moves):
+        """
+        Movimientos del lado de la reina
+        """
+        if self.board[r][c-1] == "--" and self.board[r][c-2] == "--" and self.board[r][c-3] == "--":  # verifica que las casillas estén vacías
+            if not self.square_attacked(r, c-1) and not self.square_attacked(r, c-2):  # verifica casillas en jaque
+                moves.append(Move((r, c), (r, c-2), self.board, castle=True))
+
     def pawn_moves(self, r, c, moves):
         """
         Obtener movimientos del peon r, c
@@ -173,9 +295,13 @@ class GameState:
             if c != 0:
                 if self.board[r-1][c-1][0] == "b":
                     moves.append(Move((r, c), (r-1, c-1), self.board))  # captura a la izquierda
+                elif (r-1, c-1) == self.enpassant_possible:
+                    moves.append(Move((r, c), (r-1, c-1), self.board, enpassant=True))  # captura al paso izquierda
             if c != 7:
                 if self.board[r-1][c+1][0] == "b":
                     moves.append(Move((r, c), (r-1, c+1), self.board))  # captura a la derecha
+                elif (r-1, c+1) == self.enpassant_possible:
+                    moves.append(Move((r, c), (r-1, c+1), self.board, enpassant=True))  # captura al paso derecha
         else:  # peón negro
             if self.board[r+1][c] == "--":
                 moves.append(Move((r, c), (r+1, c), self.board))  # avance de 1 casilla
@@ -184,9 +310,13 @@ class GameState:
             if c != 0:
                 if self.board[r+1][c-1][0] == "w":
                     moves.append(Move((r, c), (r+1, c-1), self.board))  # captura a la izquierda
+                elif (r+1, c-1) == self.enpassant_possible:
+                    moves.append(Move((r, c), (r+1, c-1), self.board, enpassant=True))  # captura al paso izquierda
             if c != 7:
                 if self.board[r+1][c+1][0] == "w":
                     moves.append(Move((r, c), (r+1, c+1), self.board))  # captura a la derecha
+                elif (r+1, c+1) == self.enpassant_possible:
+                    moves.append(Move((r, c), (r+1, c+1), self.board, enpassant=True))  # captura al paso derecha
 
     def rook_moves(self, r, c, moves):
         """
@@ -244,6 +374,17 @@ class GameState:
         self.single_moves(r, c, moves, dirs)
 
 
+class CastleRights:
+    """
+    Encargada de permitir los movimientos de castling
+    """
+    def __init__(self, white_ks, black_ks, white_qs, black_qs):
+        self.white_ks = white_ks
+        self.black_ks = black_ks
+        self.white_qs = white_qs
+        self.black_qs = black_qs
+
+
 class Move:
     ranks_rows = {"1": 7, "2": 6, "3": 5, "4": 4,
                   "5": 3, "6": 2, "7": 1, "8": 0}
@@ -252,7 +393,7 @@ class Move:
                   "e": 4, "f": 5, "g": 6, "h": 7}
     cols_files = {v: k for k, v in files_cols.items()}
 
-    def __init__(self, start, end, board):
+    def __init__(self, start, end, board, enpassant=False, castle=False):
         """
         Crea un movimiento
         :param start: primer click
@@ -265,6 +406,15 @@ class Move:
         self.end_c = end[1]
         self.piece_moved = board[self.start_r][self.start_c]
         self.piece_capture = board[self.end_r][self.end_c]
+        # pawn promotion
+        self.pawn_promotion = (self.piece_moved == "wP" and self.end_r == 0) or \
+                              (self.piece_moved == "bP" and self.end_r == 7)
+        # en passant
+        self.enpassant_move = enpassant
+        if self.enpassant_move:
+            self.piece_capture = "wP" if self.piece_moved == "bP" else "bP"
+        # castling
+        self.castle_move = castle
 
         self.move_id = self.start_r*1000 + self.start_c*100 + self.end_r*10 + self.end_c
 
