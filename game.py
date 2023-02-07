@@ -29,7 +29,7 @@ class Game:
         pieces = ["bP", "bR", "bB", "bN", "bQ", "bK", "wP", "wR", "wB", "wN", "wQ", "wK"]
         for piece in pieces:
             self.images[piece] = pg.image.load(DIR+piece+".png")
-        self.move_options = pg.image.load(DIR+"option.png")  # Modificar imagen. Más pequeña y centrada
+        self.move_options = pg.image.load(DIR+"option.png")
         self.move_options.set_alpha(120)
 
     def check_events(self):
@@ -82,6 +82,19 @@ class Game:
             self.move_made = False
             self.animate = False
 
+        if self.game_state.check_mate:
+            self.game_over = True
+            if self.game_state.white_turn:
+                self.draw_text("Black wins by checkmate")
+            else:
+                self.draw_text("White wins by checkmate")
+        elif self.game_state.stale_mate:
+            self.game_over = True
+            self.draw_text("Stalemate")
+
+        self.clock.tick(FPS)
+        pg.display.flip()
+
     def draw_board(self):
         """
         Dibuja tablero
@@ -120,6 +133,15 @@ class Game:
                     if move.start_r == r and move.start_c == c:
                         self.screen.blit(self.move_options, (move.end_c*SQ_SIZE, move.end_r*SQ_SIZE))
 
+    def draw_text(self, text):
+        font = pg.font.SysFont("Arial", 32, True, False)
+        text_object = font.render(text, False, pg.Color("grey"))
+        text_loc = pg.Rect(0, 0, WIDTH, HEIGHT).move(WIDTH/2 - text_object.get_width()/2,
+                                                     HEIGHT/2 - text_object.get_height()/2)  # center text
+        self.screen.blit(text_object, text_loc)
+        text_object = font.render(text, False, pg.Color("black"))
+        self.screen.blit(text_object, text_loc.move(2, 2))
+
     def draw_game_state(self):
         """
         Dibuja el estado del juego actual
@@ -134,8 +156,8 @@ class Game:
         """
         colors = [pg.Color(DARK), pg.Color(LIGHT)]
         delta_r = move.end_r - move.start_r
-        delta_c = move.end_c - move.end_c
-        frames_per_square = 8
+        delta_c = move.end_c - move.start_c
+        frames_per_square = 6
         frame_count = (abs(delta_r) + abs(delta_c)) * frames_per_square
         for frame in range(frame_count+1):
             r, c = (move.start_r + delta_r*frame/frame_count, move.start_c + delta_c*frame/frame_count)
@@ -161,6 +183,7 @@ class Game:
 
         while self.running:
             self.check_events()
-            self.draw_game_state()
+            if not self.game_over:
+                self.draw_game_state()
             self.clock.tick(FPS)
             pg.display.flip()
