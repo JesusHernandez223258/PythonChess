@@ -119,7 +119,7 @@ class Game:
                 self.screen.blit(s, (c*SQ_SIZE, r*SQ_SIZE))
                 for move in self.valid_moves:
                     if move.start_r == r and move.start_c == c:
-                        self.screen.blit(self.move_options, (move.end_c*SQ_SIZE+13, move.end_r*SQ_SIZE+13))
+                        self.screen.blit(self.move_options, (move.end_c*SQ_SIZE, move.end_r*SQ_SIZE))
 
     def draw_game_state(self):
         """
