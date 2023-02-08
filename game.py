@@ -1,5 +1,6 @@
 from settings import *
 from chess import GameState, Move
+import player_IA
 import pygame as pg
 
 #  Preguntar promoción de peón. Problema: al validar movimientos pregunta infinitas veces
@@ -9,6 +10,7 @@ import pygame as pg
 
 class Game:
     def __init__(self):
+        self.human_turn = None
         self.images = {}
         self.move_options = ""
         self.move_capture = ""
@@ -22,6 +24,8 @@ class Game:
         self.animate = False
         self.running = True
         self.game_over = False
+        self.player_one = True  # True: human white, False: human black
+        self.player_two = False  # True: IA white, False: IA black
         self.selected = ()
         self.clicks = []
 
@@ -44,8 +48,8 @@ class Game:
         for e in pg.event.get():
             if e.type == pg.QUIT:
                 self.running = False
-            elif e.type == pg.MOUSEBUTTONDOWN:
-                if not self.game_over:
+            elif e.type == pg.MOUSEBUTTONDOWN:  # Pasar a un método
+                if not self.game_over and self.human_turn:
                     loc = pg.mouse.get_pos()
                     col = loc[0] // SQ_SIZE
                     row = loc[1] // SQ_SIZE
@@ -80,6 +84,13 @@ class Game:
                     self.move_made = False
                     self.animate = False
                     self.game_over = False
+
+        # AI move finder logic
+        if not self.game_over and not self.human_turn:
+            ai_move = player_IA.random_move(self.valid_moves)
+            self.game_state.make_move(ai_move)
+            self.move_made = True
+            self.animate = True
 
         if self.move_made:
             if self.animate:
@@ -196,6 +207,8 @@ class Game:
         pg.display.set_caption(f"{self.title}-{self.clock.get_fps() :.1f}")
 
         while self.running:
+            self.human_turn = (self.game_state.white_turn and self.player_one) or \
+                              (not self.game_state.white_turn and self.player_two)
             self.check_events()
             if not self.game_over:
                 self.draw_game_state()
