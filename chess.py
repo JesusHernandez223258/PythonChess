@@ -139,9 +139,6 @@ class GameState:
         Calcula los movimientos considerando los posibles jaques
         :return: Devuelve solo los movimientos válidos
         """
-        for log in self.castle_right_log:
-            print(log.white_ks, log.white_qs, log.black_ks, log.black_qs, end=", ")
-        print()
         temp_enpassant = self.enpassant_possible
         temp_castle_rights = CastleRights(self.current_castling_rights.white_ks, self.current_castling_rights.black_ks,
                                           self.current_castling_rights.white_qs, self.current_castling_rights.black_qs)
@@ -258,9 +255,11 @@ class GameState:
         """
         if self.square_attacked(r, c):  # verifica que no esté en jaque
             return
-        if (self.white_turn and self.current_castling_rights.white_ks) or (not self.white_turn and self.current_castling_rights.black_ks):
+        if (self.white_turn and self.current_castling_rights.white_ks) or \
+                (not self.white_turn and self.current_castling_rights.black_ks):
             self.get_ks_moves(r, c, moves)
-        if (self.white_turn and self.current_castling_rights.white_qs) or (not self.white_turn and self.current_castling_rights.black_qs):
+        if (self.white_turn and self.current_castling_rights.white_qs) or \
+                (not self.white_turn and self.current_castling_rights.black_qs):
             self.get_qs_moves(r, c, moves)
 
     def get_ks_moves(self, r, c, moves):
@@ -275,7 +274,7 @@ class GameState:
         """
         Movimientos del lado de la reina
         """
-        if self.board[r][c-1] == "--" and self.board[r][c-2] == "--" and self.board[r][c-3] == "--":  # verifica que las casillas estén vacías
+        if self.board[r][c-1] == "--" and self.board[r][c-2] == "--" and self.board[r][c-3] == "--":
             if not self.square_attacked(r, c-1) and not self.square_attacked(r, c-2):  # verifica casillas en jaque
                 moves.append(Move((r, c), (r, c-2), self.board, castle=True))
 
@@ -290,7 +289,7 @@ class GameState:
         if self.white_turn:  # peón blanco
             if self.board[r-1][c] == "--":  # avance de 1 casilla
                 moves.append(Move((r, c), (r-1, c), self.board))
-                if self.board[r-2][c] == "--" and r == 6:
+                if r == 6 and (self.board[r-2][c]):
                     moves.append(Move((r, c), (r-2, c), self.board))  # avance de 2 casillas
             if c != 0:
                 if self.board[r-1][c-1][0] == "b":
@@ -305,7 +304,7 @@ class GameState:
         else:  # peón negro
             if self.board[r+1][c] == "--":
                 moves.append(Move((r, c), (r+1, c), self.board))  # avance de 1 casilla
-                if self.board[r+2][c] == "--" and r == 1:
+                if r == 1 and (self.board[r+2][c] == "--"):
                     moves.append(Move((r, c), (r+2, c), self.board))  # avance de 2 casillas
             if c != 0:
                 if self.board[r+1][c-1][0] == "w":

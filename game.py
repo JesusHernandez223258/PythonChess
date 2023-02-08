@@ -2,15 +2,16 @@ from settings import *
 from chess import GameState, Move
 import pygame as pg
 
-#  Highlight el último movimiento realizado
-#  Highlight de diferente manera las capturas
-#  Preguntar promoción de peón
+#  Preguntar promoción de peón. Problema: al validar movimientos pregunta infinitas veces
+#  a que se quiere promocionar antes de que se haga el movimiento
+# Arreglar animación en-passant
 
 
 class Game:
     def __init__(self):
         self.images = {}
         self.move_options = ""
+        self.move_capture = ""
         self.title = TITLE
         self.screen = pg.display.set_mode((WIDTH, HEIGHT))
         self.screen.fill("White")
@@ -33,6 +34,8 @@ class Game:
             self.images[piece] = pg.image.load(DIR+piece+".png")
         self.move_options = pg.image.load(DIR+"option.png")
         self.move_options.set_alpha(120)
+        self.move_capture = pg.image.load(DIR+"capture.png")
+        self.move_capture.set_alpha(120)
 
     def check_events(self):
         """
@@ -125,16 +128,24 @@ class Game:
         """
         Marca la pieza seleccionada y sus movimientos válidos
         """
+        s = pg.Surface((SQ_SIZE, SQ_SIZE))
+        s.fill("yellow")
+        s.set_alpha(120)
         if self.selected != ():
             r, c = self.selected[0], self.selected[1]
             if self.game_state.board[r][c][0] == ("w" if self.game_state.white_turn else "b"):
-                s = pg.Surface((SQ_SIZE, SQ_SIZE))
-                s.fill("yellow")
-                s.set_alpha(120)
                 self.screen.blit(s, (c*SQ_SIZE, r*SQ_SIZE))
                 for move in self.valid_moves:
                     if move.start_r == r and move.start_c == c:
-                        self.screen.blit(self.move_options, (move.end_c*SQ_SIZE, move.end_r*SQ_SIZE))
+                        color = "b" if self.game_state.white_turn else "w"
+                        if self.game_state.board[move.end_r][move.end_c][0] == color:
+                            self.screen.blit(self.move_capture, (move.end_c*SQ_SIZE, move.end_r*SQ_SIZE))
+                        else:
+                            self.screen.blit(self.move_options, (move.end_c*SQ_SIZE, move.end_r*SQ_SIZE))
+        if len(self.game_state.move_log) != 0:
+            move = self.game_state.move_log[-1]
+            self.screen.blit(s, (move.start_c*SQ_SIZE, move.start_r*SQ_SIZE))
+            self.screen.blit(s, (move.end_c * SQ_SIZE, move.end_r * SQ_SIZE))
 
     def draw_text(self, text):
         font = pg.font.SysFont("Arial", 32, True, False)
