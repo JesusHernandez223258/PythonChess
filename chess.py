@@ -22,8 +22,8 @@ class GameState:
         self.move_log = []
         self.white_king_pos = (7, 4)
         self.black_king_pos = (0, 4)
-        self.check_mate = False
-        self.stale_mate = False
+        self.checkmate = False
+        self.stalemate = False
         self.enpassant_possible = ()
         self.current_castling_rights = CastleRights(True, True, True, True)
         self.castle_right_log = [CastleRights(self.current_castling_rights.white_ks,
@@ -109,6 +109,9 @@ class GameState:
                     self.board[move.end_r][move.end_c-2] = self.board[move.end_r][move.end_c+1]
                     self.board[move.end_r][move.end_c+1] = "--"
 
+            self.checkmate = False
+            self.stalemate = False
+
     def update_castling(self, move):
         """
         Actualiza los derechos de castling
@@ -156,12 +159,12 @@ class GameState:
             self.undo_move()
         if len(moves) == 0:
             if self.check():
-                self.check_mate = True
+                self.checkmate = True
             else:
-                self.stale_mate = True
+                self.stalemate = True
         else:
-            self.check_mate = False
-            self.stale_mate = False
+            self.checkmate = False
+            self.stalemate = False
         self.enpassant_possible = temp_enpassant
         self.current_castling_rights = temp_castle_rights
         return moves

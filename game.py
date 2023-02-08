@@ -1,11 +1,12 @@
 from settings import *
 from chess import GameState, Move
-import player_IA
+from player_IA import Player
 import pygame as pg
 
 #  Preguntar promoción de peón. Problema: al validar movimientos pregunta infinitas veces
 #  a que se quiere promocionar antes de que se haga el movimiento
 # Arreglar animación en-passant
+# Separar check_events() en métodos
 
 
 class Game:
@@ -24,7 +25,8 @@ class Game:
         self.animate = False
         self.running = True
         self.game_over = False
-        self.player_one = True  # True: human white, False: human black
+        self.AI_player = Player()
+        self.player_one = False  # True: human white, False: human black
         self.player_two = False  # True: IA white, False: IA black
         self.selected = ()
         self.clicks = []
@@ -48,7 +50,7 @@ class Game:
         for e in pg.event.get():
             if e.type == pg.QUIT:
                 self.running = False
-            elif e.type == pg.MOUSEBUTTONDOWN:  # Pasar a un método
+            elif e.type == pg.MOUSEBUTTONDOWN:
                 if not self.game_over and self.human_turn:
                     loc = pg.mouse.get_pos()
                     col = loc[0] // SQ_SIZE
@@ -76,6 +78,7 @@ class Game:
                     self.game_state.undo_move()
                     self.move_made = True
                     self.animate = False
+                    self.game_over = False
                 if e.key == pg.K_r:
                     self.game_state = GameState()
                     self.valid_moves = self.game_state.get_valid_moves()
@@ -87,7 +90,9 @@ class Game:
 
         # AI move finder logic
         if not self.game_over and not self.human_turn:
-            ai_move = player_IA.random_move(self.valid_moves)
+            ai_move = self.AI_player.best_minmax_move(self.game_state, self.valid_moves)
+            if ai_move is None:
+                ai_move = self.AI_player.random_move(self.valid_moves)
             self.game_state.make_move(ai_move)
             self.move_made = True
             self.animate = True
@@ -99,13 +104,13 @@ class Game:
             self.move_made = False
             self.animate = False
 
-        if self.game_state.check_mate:
+        if self.game_state.checkmate:
             self.game_over = True
             if self.game_state.white_turn:
                 self.draw_text("Black wins by checkmate")
             else:
                 self.draw_text("White wins by checkmate")
-        elif self.game_state.stale_mate:
+        elif self.game_state.stalemate:
             self.game_over = True
             self.draw_text("Stalemate")
 
