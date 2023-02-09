@@ -1,4 +1,6 @@
 import random
+next_move = None  # Para evitar marcado de error en PyCharm
+counter = None  # Igual
 
 
 class Player:
@@ -35,8 +37,8 @@ class Player:
     def board_score(self, game_state):
         """
         Calcula el score del tablero según . + para blancas, - para negras
-        :param game_state:
-        :return:
+        :param game_state: estado actual del juego
+        :return: puntuación del material del tablero
         """
         if game_state.checkmate:
             if game_state.white_turn:
@@ -66,7 +68,6 @@ class Player:
         turn_multiplier = 1 if games_state.white_turn else -1
         opp_minmax_score = self.CHECKMATE
         best_player_move = None
-        random.shuffle(valid_moves)
         for player_move in valid_moves:
             games_state.make_move(player_move)
             opp_moves = games_state.get_valid_moves()
@@ -94,16 +95,22 @@ class Player:
             games_state.undo_move()
         return best_player_move
 
-    def best_minmax_move(self, game_state, valid_moves):
+    def best_move(self, game_state, valid_moves):
         """
-        Método para generar la primera llamada de recursión
-        :param game_state:
-        :param valid_moves:
-        :return:
+        Método para generar la primera llamada de recursión. Generar el movimiento
+        :param game_state: estado actual del juego
+        :param valid_moves: lista de movimientos válidos
+        :return: siguiente movimiento
         """
-        global next_move
+        global next_move, counter
         next_move = None
-        self.minmax_move(game_state, valid_moves, self.MAX_DEPTH, game_state.white_turn)
+        counter = 0
+        random.shuffle(valid_moves)
+        # self.greedy_move(game_state, valid_moves)
+        # self.minmax_move(game_state, valid_moves, self.MAX_DEPTH, game_state.white_turn)
+        # self.negamax_move(game_state, valid_moves, self.MAX_DEPTH, 1 if game_state.white_turn else -1)
+        self.alpha_beta_negamax_move(game_state, valid_moves, self.MAX_DEPTH, -self.CHECKMATE, self.CHECKMATE, 1 if game_state.white_turn else -1)
+        print(counter)
         return next_move
 
     def minmax_move(self, game_state, valid_moves, depth, white_turn):
@@ -145,13 +152,60 @@ class Player:
                 game_state.undo_move()
             return min_score
 
+    def negamax_move(self, game_state, valid_moves, depth, turn_multiplier):
+        """
+        Algoritmo NegaMax. Hace lo mismo que MinMax solo que es más corto y sencillo
+        :param game_state: estado actual del juego
+        :param valid_moves: lista de movimientos válidos
+        :param depth: profundidad del algoritmo. Cuantos movimientos próximos calcula
+        :param turn_multiplier: 1: turno blanco, -1 turno negro
+        :return:
+        """
+        global next_move, counter
+        counter += 1
+        if depth == 0:
+            return turn_multiplier * self.board_score(game_state)
 
+        max_score = -self.CHECKMATE
+        for move in valid_moves:
+            game_state.make_move(move)
+            next_moves = game_state.get_valid_moves()
+            score = -self.negamax_move(game_state, next_moves, depth-1, -turn_multiplier)
+            if score > max_score:
+                max_score = score
+                if depth == self.MAX_DEPTH:
+                    next_move = move
+            game_state.undo_move()
+        return max_score
 
+    def alpha_beta_negamax_move(self, game_state, valid_moves, depth, alpha, beta, turn_multiplier):
+        """
+        Algoritmo NegaMax con poda alpha-beta.
+        :param game_state: estado actual del juego
+        :param valid_moves: lista de movimientos válidos
+        :param depth: profundidad del algoritmo. Cuantos movimientos próximos calcula
+        :param alpha: puntuación maxima
+        :param beta: puntuación minima
+        :param turn_multiplier: 1: turno blanco, -1 turno negro
+        :return:
+        """
+        global next_move, counter
+        counter += 1
+        if depth == 0:
+            return turn_multiplier * self.board_score(game_state)
 
-
-
-
-
-
-
-
+        max_score = -self.CHECKMATE
+        for move in valid_moves:
+            game_state.make_move(move)
+            next_moves = game_state.get_valid_moves()
+            score = -self.alpha_beta_negamax_move(game_state, next_moves, depth-1, -beta, -alpha, -turn_multiplier)
+            if score > max_score:
+                max_score = score
+                if depth == self.MAX_DEPTH:
+                    next_move = move
+            game_state.undo_move()
+            if max_score > alpha:
+                alpha = max_score
+            if alpha >= beta:
+                break
+        return max_score

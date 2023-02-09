@@ -27,7 +27,7 @@ class Game:
         self.game_over = False
         self.AI_player = Player()
         self.player_one = False  # True: human white, False: human black
-        self.player_two = False  # True: IA white, False: IA black
+        self.player_two = True  # True: IA white, False: IA black
         self.selected = ()
         self.clicks = []
 
@@ -90,7 +90,7 @@ class Game:
 
         # AI move finder logic
         if not self.game_over and not self.human_turn:
-            ai_move = self.AI_player.best_minmax_move(self.game_state, self.valid_moves)
+            ai_move = self.AI_player.best_move(self.game_state, self.valid_moves)
             if ai_move is None:
                 ai_move = self.AI_player.random_move(self.valid_moves)
             self.game_state.make_move(ai_move)
