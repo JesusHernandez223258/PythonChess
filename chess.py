@@ -25,6 +25,7 @@ class GameState:
         self.checkmate = False
         self.stalemate = False
         self.enpassant_possible = ()
+        self.enpassant_possible_log = [self.enpassant_possible]
         self.current_castling_rights = CastleRights(True, True, True, True)
         self.castle_right_log = [CastleRights(self.current_castling_rights.white_ks,
                                               self.current_castling_rights.black_ks,
@@ -56,6 +57,7 @@ class GameState:
             self.enpassant_possible = ((move.start_r + move.end_r)//2, move.end_c)
         else:
             self.enpassant_possible = ()
+        self.enpassant_possible_log.append(self.enpassant_possible)
         # castling
         if move.castle_move:
             if move.end_c - move.start_c == 2:  # king side
@@ -78,7 +80,7 @@ class GameState:
         """
         if len(self.move_log) != 0:
             move = self.move_log.pop()
-            self.board[move.end_r][move.end_c] = move.piece_capture
+            self.board[move.end_r][move.end_c] = move.piece_captured
             self.board[move.start_r][move.start_c] = move.piece_moved
             self.white_turn = not self.white_turn
             #  actualizar posición del rey
@@ -89,11 +91,15 @@ class GameState:
             # deshacer enpassant
             if move.enpassant_move:
                 self.board[move.end_r][move.end_c] = "--"
-                self.board[move.start_r][move.end_c] = move.piece_capture
-                self.enpassant_possible = (move.end_r, move.end_c)
+                self.board[move.start_r][move.end_c] = move.piece_captured
+                # self.enpassant_possible = (move.end_r, move.end_c)
+            self.enpassant_possible_log.pop()
+            self.enpassant_possible = self.enpassant_possible_log[-1]
+
             # deshacer avance de 2 casillas (peón)
-            if move.piece_moved[1] == "P" and abs(move.end_r - move.start_r) == 2:
-                self.enpassant_possible = ()
+            # if move.piece_moved[1] == "P" and abs(move.end_r - move.start_r) == 2:
+            #     self.enpassant_possible = ()
+
             # deshacer castle rights
             self.castle_right_log.pop()
             new_right = self.castle_right_log[-1]
@@ -135,6 +141,19 @@ class GameState:
                 if move.start_c == 0:
                     self.current_castling_rights.black_qs = False
                 elif move.start_c == 7:
+                    self.current_castling_rights.black_ks = False
+
+        if move.piece_captured == "wR":
+            if move.end_r == 7:
+                if move.end_c == 0:
+                    self.current_castling_rights.white_qs = False
+                elif move.end_c == 7:
+                    self.current_castling_rights.white_ks = False
+        if move.piece_captured == "bR":
+            if move.end_r == 0:
+                if move.end_c == 0:
+                    self.current_castling_rights.black_qs = False
+                elif move.end_c == 7:
                     self.current_castling_rights.black_ks = False
 
     def get_valid_moves(self):
@@ -407,14 +426,17 @@ class Move:
         self.end_r = end[0]
         self.end_c = end[1]
         self.piece_moved = board[self.start_r][self.start_c]
-        self.piece_capture = board[self.end_r][self.end_c]
+        self.piece_captured = board[self.end_r][self.end_c]
+
         # pawn promotion
         self.pawn_promotion = (self.piece_moved == "wP" and self.end_r == 0) or \
                               (self.piece_moved == "bP" and self.end_r == 7)
         # en passant
         self.enpassant_move = enpassant
         if self.enpassant_move:
-            self.piece_capture = "wP" if self.piece_moved == "bP" else "bP"
+            self.piece_captured = "wP" if self.piece_moved == "bP" else "bP"
+
+       #self.capture = self.piece_captured != "-- "
         # castling
         self.castle_move = castle
 
@@ -444,3 +466,30 @@ class Move:
         if isinstance(other, Move):
             return self.move_id == other.move_id
         return False
+
+    def __str__(self):
+        """
+        Sobreescribir el método de str()
+        https://en.wikipedia.org/wiki/Algebraic_notation_(chess)
+        """
+        # castle move
+        if self.castle_move:
+            return "O-O" if self.end_c == 6 else "O-O-O"
+
+        end = self.get_rank_file(self.end_r, self.end_c)
+        # movimientos de peón
+        if self.piece_moved[1] == "P":
+            if self.piece_captured != "--":
+                return self.cols_files[self.start_c] + "x" + end
+            else:
+                return end
+
+            # promoción de peón
+
+        # + para check move, # para checkmate
+
+        # movimiento de piezas
+        move_string = self.piece_moved[1]
+        if self.piece_captured != "--":
+            move_string += "x"
+        return move_string + end
