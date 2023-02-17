@@ -1,6 +1,7 @@
 from settings import *
 from chess import GameState, Move
 from player_IA import Player
+from openings import check_open
 import pygame as pg
 
 #  Preguntar promoción de peón. Problema: al validar movimientos pregunta infinitas veces
@@ -163,14 +164,17 @@ class Game:
                                      pg.Rect(c*SQ_SIZE, r*SQ_SIZE, SQ_SIZE, SQ_SIZE))
 
     def draw_move_log(self):  # probar con itertools
+        """
+        Dibuja en pantalla los movimientos realizados
+        """
         log_rect = pg.Rect(BOARD_WIDTH, 0, LOG_PANEL_WIDTH, LOG_PANEL_HEIGHT)
         pg.draw.rect(self.screen, pg.Color("black"), log_rect)
         move_log = self.game_state.move_log
         move_texts = []
         for i in range(0, len(move_log), 2):
-            move_string = str(i//2 + 1) + ". " + str(move_log[i]) + " "
+            move_string = str(i//2 + 1) + "." + str(move_log[i]) + " "
             if i + 1 < len(move_log):
-                move_string += str(move_log[i+1]) + " "
+                move_string += str(move_log[i+1]) + "  "
             move_texts.append(move_string)
         mpr = 2
         padding = 5
@@ -186,7 +190,34 @@ class Game:
             self.screen.blit(text_object, text_loc)
             text_y += text_object.get_height() + spacing
 
+    def check_opening(self):
+        """
+        Verifica que opening está siendo utilizado según los primeros movimientos hechos y su orden
+        """
+        text_object = self.font.render("Actual Opening:", True, pg.Color("white"))
+        text_loc = pg.Rect(BOARD_WIDTH + ((LOG_PANEL_WIDTH - text_object.get_width()) // 2),
+                           BOARD_HEIGHT - text_object.get_height() - 40, text_object.get_width(),
+                           text_object.get_height())
+        self.screen.blit(text_object, text_loc)
+        opening = check_open(self.game_state.move_log)
+        self.draw_opening(opening)
+
+    def draw_opening(self, opening):
+        """
+        Escribe el opening usado en la pantalla
+        :param opening: opening usado
+        """
+        text_object = self.font.render(opening, True, pg.Color("white"))
+        text_loc = pg.Rect(BOARD_WIDTH+((LOG_PANEL_WIDTH-text_object.get_width())//2),
+                           BOARD_HEIGHT-text_object.get_height()-10, text_object.get_width(),
+                           text_object.get_height())
+        self.screen.blit(text_object, text_loc)
+
     def draw_end_text(self, text):
+        """
+        Dibuja en la pantalla final el ganador del juego
+        :param text: Texto a mostrar
+        """
         font = pg.font.SysFont("Arial", 32, True, False)
         text_object = font.render(text, False, pg.Color("grey"))
         text_loc = pg.Rect(0, 0, BOARD_WIDTH, BOARD_HEIGHT).move(BOARD_WIDTH / 2 - text_object.get_width() / 2,
@@ -228,6 +259,7 @@ class Game:
         self.draw_highlight()
         self.draw_pieces()
         self.draw_move_log()
+        self.check_opening()
 
     def main(self):
         """
@@ -235,7 +267,7 @@ class Game:
         """
         pg.init()
         self.load_images()
-        self.font = pg.font.SysFont("Arial", 18, False, False)
+        self.font = pg.font.SysFont("Arial", 22, False, False)
 
         pg.display.set_caption(f"{self.title}-{self.clock.get_fps() :.1f}")
 
