@@ -308,36 +308,29 @@ class GameState:
         :param moves: lista de movimientos
         :return: lista de movimientos del peón actualizados
         """
-        if self.white_turn:  # peón blanco
-            if self.board[r-1][c] == "--":  # avance de 1 casilla
-                moves.append(Move((r, c), (r-1, c), self.board))
-                if r == 6 and (self.board[r-2][c]):
-                    moves.append(Move((r, c), (r-2, c), self.board))  # avance de 2 casillas
-            if c != 0:
-                if self.board[r-1][c-1][0] == "b":
-                    moves.append(Move((r, c), (r-1, c-1), self.board))  # captura a la izquierda
-                elif (r-1, c-1) == self.enpassant_possible:
-                    moves.append(Move((r, c), (r-1, c-1), self.board, enpassant=True))  # captura al paso izquierda
-            if c != 7:
-                if self.board[r-1][c+1][0] == "b":
-                    moves.append(Move((r, c), (r-1, c+1), self.board))  # captura a la derecha
-                elif (r-1, c+1) == self.enpassant_possible:
-                    moves.append(Move((r, c), (r-1, c+1), self.board, enpassant=True))  # captura al paso derecha
-        else:  # peón negro
-            if self.board[r+1][c] == "--":
-                moves.append(Move((r, c), (r+1, c), self.board))  # avance de 1 casilla
-                if r == 1 and (self.board[r+2][c] == "--"):
-                    moves.append(Move((r, c), (r+2, c), self.board))  # avance de 2 casillas
-            if c != 0:
-                if self.board[r+1][c-1][0] == "w":
-                    moves.append(Move((r, c), (r+1, c-1), self.board))  # captura a la izquierda
-                elif (r+1, c-1) == self.enpassant_possible:
-                    moves.append(Move((r, c), (r+1, c-1), self.board, enpassant=True))  # captura al paso izquierda
-            if c != 7:
-                if self.board[r+1][c+1][0] == "w":
-                    moves.append(Move((r, c), (r+1, c+1), self.board))  # captura a la derecha
-                elif (r+1, c+1) == self.enpassant_possible:
-                    moves.append(Move((r, c), (r+1, c+1), self.board, enpassant=True))  # captura al paso derecha
+        if self.white_turn:
+            amount = -1
+            enemy = "b"
+            start_r = 6
+        else:
+            amount = 1
+            enemy = "w"
+            start_r = 1
+
+        if self.board[r+amount][c] == "--":
+            moves.append(Move((r, c), (r+amount, c), self.board))
+            if r == start_r and (self.board[r+amount*2][c] == "--"):
+                moves.append(Move((r, c), (r+amount*2, c), self.board))
+        if c != 0:
+            if self.board[r+amount][c - 1][0] == enemy:
+                moves.append(Move((r, c), (r+amount, c - 1), self.board))  # captura a la izquierda
+            elif (r+amount, c - 1) == self.enpassant_possible:
+                moves.append(Move((r, c), (r+amount, c - 1), self.board, enpassant=True))  # captura al paso izquierda
+        if c != 7:
+            if self.board[r+amount][c + 1][0] == enemy:
+                moves.append(Move((r, c), (r+amount, c + 1), self.board))  # captura a la derecha
+            elif (r+amount, c + 1) == self.enpassant_possible:
+                moves.append(Move((r, c), (r+amount, c + 1), self.board, enpassant=True))  # captura al paso derecha
 
     def rook_moves(self, r, c, moves):
         """
@@ -436,7 +429,7 @@ class Move:
         if self.enpassant_move:
             self.piece_captured = "wP" if self.piece_moved == "bP" else "bP"
 
-       #self.capture = self.piece_captured != "-- "
+        # self.capture = self.piece_captured != "-- "
         # castling
         self.castle_move = castle
 

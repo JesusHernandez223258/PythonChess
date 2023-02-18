@@ -3,13 +3,24 @@ from chess import GameState, Move
 from player_IA import Player
 from openings import check_open
 import pygame as pg
+from multiprocessing import Process, Queue
 
 #  Preguntar promoción de peón. Problema: al validar movimientos pregunta infinitas veces
 #  a que se quiere promocionar antes de que se haga el movimiento
-# Arreglar animación en-passant
 # Separar check_events() en métodos
 # State list / state log. Lista con todos los estados del juego para asi poder volver al anterior
 # agregar notación para jaques
+# Mejorar la UI:
+# -Add 50 move draw and 3 move repeating draw rule
+# -Move ordering - look at checks, captures and threats first, prioritize castling/king safety, look at pawn moves last (this will improve alpha-beta pruning). Also start with moves that previously scored higher (will also improve pruning).
+# -Calculate both players moves given a position
+# -Change move calculation to make it more efficient. Instead of recalculating all moves, start with moves from previous board and change based on last move made
+# -Use a numpy array instead of 2d list of strings or store the board differently (maybe with bit boards:
+# https://www.chessprogramming.org/Bitboards
+# -Hash board positions already visited to improve computation time for transpositions.
+# https://en.wikipedia.org/wiki/Zobrist_hashing
+# -If move is a capture move, even at max depth, continue evaluating until no captures remain
+# https://www.chessprogramming.org/Quiescence_Search
 
 
 class Game:
@@ -31,9 +42,14 @@ class Game:
         self.game_over = False
         self.AI_player = Player()
         self.player_one = True  # True: human white, False: human black
-        self.player_two = True  # True: IA white, False: IA black
+        self.player_two = False  # True: IA white, False: IA black
         self.selected = ()
         self.clicks = []
+
+        self.thinking = False  # True si la IA esta "Pensando", False si no lo está
+        self.move_finder_process = None
+        self.return_queue = None
+        self.move_undone = False
 
     def load_images(self):
         """
@@ -47,6 +63,72 @@ class Game:
         self.move_capture = pg.image.load(DIR+"capture.png")
         self.move_capture.set_alpha(120)
 
+    def check_mouse(self, e):
+        if not self.game_over:
+            loc = pg.mouse.get_pos()
+            col = loc[0] // SQ_SIZE
+            row = loc[1] // SQ_SIZE
+            if self.selected == (row, col) or col > 7:
+                self.selected = ()
+                self.clicks = []
+            else:
+                self.selected = (row, col)
+                self.clicks.append(self.selected)
+            if len(self.clicks) == 2 and self.human_turn:
+                move = Move((self.clicks[0]), (self.clicks[1]), self.game_state.board)
+                for i in range(len(self.valid_moves)):
+                    if move == self.valid_moves[i]:
+                        self.game_state.make_move(self.valid_moves[i])
+                        self.move_made = True
+                        self.animate = True
+                        print(f"{move.get_notation()} - {move.move_id}")
+                        self.selected = ()
+                        self.clicks = []
+                if not self.move_made:
+                    self.clicks = [self.selected]
+
+    def check_keyboard(self, e):
+        if e.key == pg.K_LCTRL:
+            self.game_state.undo_move()
+            self.move_made = True
+            self.animate = False
+            self.game_over = False
+            if self.thinking:
+                self.move_finder_process.terminate()
+                self.thinking = False
+            self.move_undone = True
+        if e.key == pg.K_r:
+            self.game_state = GameState()
+            self.valid_moves = self.game_state.get_valid_moves()
+            self.selected = ()
+            self.clicks = []
+            self.move_made = False
+            self.animate = False
+            self.game_over = False
+            self.move_undone = True
+            if self.thinking:
+                self.move_finder_process.terminate()
+                self.thinking = False
+
+    def check_ia(self):
+        if not self.thinking:
+            self.thinking = True
+            print("Pensando...")
+            self.return_queue = Queue()
+            self.move_finder_process = Process(target=self.AI_player.best_move,
+                                               args=(self.game_state, self.valid_moves, self.return_queue))
+            self.move_finder_process.start()  # llama self.AI_player.best_move(self.game_state, self.valid_moves)
+
+        if not self.move_finder_process.is_alive():  # si esta pensando todavía o no
+            print("Listo!")
+            ai_move = self.return_queue.get()
+            if ai_move is None:
+                ai_move = self.AI_player.random_move(self.valid_moves)
+            self.game_state.make_move(ai_move)
+            self.move_made = True
+            self.animate = True
+            self.thinking = False
+
     def check_events(self):
         """
         Verifica eventos del teclado/mouse
@@ -55,51 +137,13 @@ class Game:
             if e.type == pg.QUIT:
                 self.running = False
             elif e.type == pg.MOUSEBUTTONDOWN:
-                if not self.game_over and self.human_turn:
-                    loc = pg.mouse.get_pos()
-                    col = loc[0] // SQ_SIZE
-                    row = loc[1] // SQ_SIZE
-                    if self.selected == (row, col) or col > 7:
-                        self.selected = ()
-                        self.clicks = []
-                    else:
-                        self.selected = (row, col)
-                        self.clicks.append(self.selected)
-                    if len(self.clicks) == 2:
-                        move = Move((self.clicks[0]), (self.clicks[1]), self.game_state.board)
-                        for i in range(len(self.valid_moves)):
-                            if move == self.valid_moves[i]:
-                                self.game_state.make_move(self.valid_moves[i])
-                                self.move_made = True
-                                self.animate = True
-                                print(f"{move.get_notation()} - {move.move_id}")
-                                self.selected = ()
-                                self.clicks = []
-                        if not self.move_made:
-                            self.clicks = [self.selected]
+                self.check_mouse(e)
             elif e.type == pg.KEYDOWN:
-                if e.key == pg.K_LCTRL:
-                    self.game_state.undo_move()
-                    self.move_made = True
-                    self.animate = False
-                    self.game_over = False
-                if e.key == pg.K_r:
-                    self.game_state = GameState()
-                    self.valid_moves = self.game_state.get_valid_moves()
-                    self.selected = ()
-                    self.clicks = []
-                    self.move_made = False
-                    self.animate = False
-                    self.game_over = False
+                self.check_keyboard(e)
 
         # AI move finder logic
-        if not self.game_over and not self.human_turn:
-            ai_move = self.AI_player.best_move(self.game_state, self.valid_moves)
-            if ai_move is None:
-                ai_move = self.AI_player.random_move(self.valid_moves)
-            self.game_state.make_move(ai_move)
-            self.move_made = True
-            self.animate = True
+        if not self.game_over and not self.human_turn and not self.move_undone:
+            self.check_ia()
 
         if self.move_made:
             if self.animate:

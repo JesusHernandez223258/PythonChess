@@ -1,4 +1,5 @@
 import random
+import numpy as np
 next_move = None  # Para evitar marcado de error en PyCharm
 counter = None  # Igual
 
@@ -6,6 +7,70 @@ counter = None  # Igual
 class Player:
     def __init__(self):
         self.piece_values = {"K": 0, "Q": 10, "R": 5, "B": 3, "N": 3, "P": 1}
+        self.queen_scores = np.array([
+            [1, 1, 1, 3, 1, 1, 1, 1],
+            [1, 2, 3, 3, 3, 1, 1, 1],
+            [1, 4, 3, 3, 3, 4, 2, 1],
+            [1, 2, 3, 3, 3, 2, 2, 1],
+            [1, 2, 3, 3, 3, 2, 2, 1],
+            [1, 4, 3, 3, 3, 4, 2, 1],
+            [1, 1, 2, 3, 3, 1, 1, 1],
+            [1, 1, 1, 3, 1, 1, 1, 1]
+        ])
+        self.rook_scores = np.array([
+            [4, 3, 4, 4, 4, 4, 3, 4],
+            [4, 4, 4, 4, 4, 4, 4, 4],
+            [1, 1, 2, 3, 3, 2, 1, 1],
+            [1, 2, 3, 4, 4, 3, 2, 1],
+            [1, 2, 3, 4, 4, 3, 2, 1],
+            [1, 1, 2, 3, 3, 2, 1, 1],
+            [4, 4, 4, 4, 4, 4, 4, 4],
+            [4, 3, 4, 4, 4, 4, 3, 4]
+        ])
+        self.bishop_scores = np.array([
+            [4, 3, 2, 1, 1, 2, 3, 4],
+            [3, 4, 3, 2, 2, 3, 4, 3],
+            [2, 3, 4, 3, 3, 4, 3, 2],
+            [1, 2, 3, 4, 4, 3, 2, 1],
+            [1, 2, 3, 4, 4, 3, 2, 1],
+            [2, 3, 4, 3, 3, 4, 3, 2],
+            [3, 4, 3, 2, 2, 3, 4, 3],
+            [4, 3, 2, 1, 1, 2, 3, 4]
+        ])
+        self.knight_scores = np.array([
+            [1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 2, 2, 2, 2, 2, 2, 1],
+            [1, 2, 3, 3, 3, 3, 2, 1],
+            [1, 2, 3, 4, 4, 3, 2, 1],
+            [1, 2, 3, 4, 4, 3, 2, 1],
+            [1, 2, 3, 3, 3, 3, 2, 1],
+            [1, 2, 2, 2, 2, 2, 2, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1]
+        ])
+        self.white_pawn_scores = np.array([
+            [10, 10, 10, 10, 10, 10, 10, 10],
+            [8, 8, 8, 8, 8, 8, 8, 8],
+            [5, 6, 6, 7, 7, 6, 6, 5],
+            [2, 3, 3, 6, 6, 3, 3, 2],
+            [1, 2, 3, 10, 10, 3, 2, 1],
+            [1, 1, 2, 3, 3, 2, 1, 1],
+            [1, 1, 1, 0, 0, 1, 1, 1],
+            [0, 0, 0, 0, 0, 0, 0, 0]
+        ])
+        self.black_pawn_scores = np.array([
+            [0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 1, 0, 0, 1, 1, 1],
+            [1, 1, 2, 3, 3, 2, 1, 1],
+            [1, 2, 3, 10, 10, 3, 2, 1],
+            [2, 3, 3, 6, 6, 3, 3, 2],
+            [5, 6, 6, 7, 7, 6, 6, 5],
+            [8, 8, 8, 8, 8, 8, 8, 8],
+            [10, 10, 10, 10, 10, 10, 10, 10]
+        ])
+
+        self.positions_scores = {"Q": self.queen_scores, "R": self.rook_scores, "B": self.black_pawn_scores,
+                                 "N": self.knight_scores, "bP": self.black_pawn_scores, "wP": self.white_pawn_scores}
+        self.psm = .1
         self.CHECKMATE = 1000
         self.STALEMATE = 0
         self.MAX_DEPTH = 3
@@ -49,12 +114,20 @@ class Player:
             return self.STALEMATE
 
         score = 0
-        for r in game_state.board:
-            for sq in r:
-                if sq[0] == "w":
-                    score += self.piece_values[sq[1]]
-                elif sq[0] == "b":
-                    score -= self.piece_values[sq[1]]
+        for r in range(len(game_state.board)):
+            for c in range(len(game_state.board[r])):
+                sq = game_state.board[r][c]
+                if sq != "--":
+                    position_score = 0
+                    if sq[1] != "K":
+                        if sq[1] == "P":
+                            position_score = self.positions_scores[sq][r][c]
+                        else:
+                            position_score = self.positions_scores[sq[1]][r][c]
+                    if sq[0] == "w":
+                        score += self.piece_values[sq[1]] + position_score * self.psm
+                    elif sq[0] == "b":
+                        score -= self.piece_values[sq[1]] + position_score * self.psm
         return score
 
     def greedy_move(self, games_state, valid_moves):
@@ -95,7 +168,7 @@ class Player:
             games_state.undo_move()
         return best_player_move
 
-    def best_move(self, game_state, valid_moves):
+    def best_move(self, game_state, valid_moves, return_queue):
         """
         Método para generar la primera llamada de recursión. Generar el movimiento
         :param game_state: estado actual del juego
@@ -111,7 +184,7 @@ class Player:
         # self.negamax_move(game_state, valid_moves, self.MAX_DEPTH, 1 if game_state.white_turn else -1)
         self.alpha_beta_negamax_move(game_state, valid_moves, self.MAX_DEPTH, -self.CHECKMATE, self.CHECKMATE, 1 if game_state.white_turn else -1)
         print(counter)
-        return next_move
+        return_queue.put(next_move)
 
     def minmax_move(self, game_state, valid_moves, depth, white_turn):
         """
