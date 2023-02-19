@@ -42,7 +42,7 @@ class Game:
         self.game_over = False
         self.AI_player = Player()
         self.player_one = True  # True: human white, False: human black
-        self.player_two = False  # True: IA white, False: IA black
+        self.player_two = True  # True: IA white, False: IA black
         self.selected = ()
         self.clicks = []
 
@@ -105,10 +105,10 @@ class Game:
             self.move_made = False
             self.animate = False
             self.game_over = False
-            self.move_undone = True
             if self.thinking:
                 self.move_finder_process.terminate()
                 self.thinking = False
+            self.move_undone = True
 
     def check_ia(self):
         if not self.thinking:
@@ -123,6 +123,7 @@ class Game:
             print("Listo!")
             ai_move = self.return_queue.get()
             if ai_move is None:
+                print(len(self.valid_moves))
                 ai_move = self.AI_player.random_move(self.valid_moves)
             self.game_state.make_move(ai_move)
             self.move_made = True
@@ -151,6 +152,7 @@ class Game:
             self.valid_moves = self.game_state.get_valid_moves()
             self.move_made = False
             self.animate = False
+            self.move_undone = False
 
         if self.game_state.checkmate or self.game_state.stalemate:
             self.game_over = True

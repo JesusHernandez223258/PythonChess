@@ -52,7 +52,7 @@ class Player:
             [8, 8, 8, 8, 8, 8, 8, 8],
             [5, 6, 6, 7, 7, 6, 6, 5],
             [2, 3, 3, 6, 6, 3, 3, 2],
-            [1, 2, 3, 10, 10, 3, 2, 1],
+            [1, 2, 8, 10, 10, 8, 2, 1],
             [1, 1, 2, 3, 3, 2, 1, 1],
             [1, 1, 1, 0, 0, 1, 1, 1],
             [0, 0, 0, 0, 0, 0, 0, 0]
@@ -61,7 +61,7 @@ class Player:
             [0, 0, 0, 0, 0, 0, 0, 0],
             [1, 1, 1, 0, 0, 1, 1, 1],
             [1, 1, 2, 3, 3, 2, 1, 1],
-            [1, 2, 3, 10, 10, 3, 2, 1],
+            [1, 2, 8, 10, 10, 8, 2, 1],
             [2, 3, 3, 6, 6, 3, 3, 2],
             [5, 6, 6, 7, 7, 6, 6, 5],
             [8, 8, 8, 8, 8, 8, 8, 8],
@@ -70,10 +70,10 @@ class Player:
 
         self.positions_scores = {"Q": self.queen_scores, "R": self.rook_scores, "B": self.black_pawn_scores,
                                  "N": self.knight_scores, "bP": self.black_pawn_scores, "wP": self.white_pawn_scores}
-        self.psm = .1
+        self.psm = .2
         self.CHECKMATE = 1000
         self.STALEMATE = 0
-        self.MAX_DEPTH = 3
+        self.MAX_DEPTH = 4
 
     @staticmethod
     def random_move(valid_moves):
@@ -171,6 +171,7 @@ class Player:
     def best_move(self, game_state, valid_moves, return_queue):
         """
         Método para generar la primera llamada de recursión. Generar el movimiento
+        :param return_queue:
         :param game_state: estado actual del juego
         :param valid_moves: lista de movimientos válidos
         :return: siguiente movimiento
@@ -183,7 +184,7 @@ class Player:
         # self.minmax_move(game_state, valid_moves, self.MAX_DEPTH, game_state.white_turn)
         # self.negamax_move(game_state, valid_moves, self.MAX_DEPTH, 1 if game_state.white_turn else -1)
         self.alpha_beta_negamax_move(game_state, valid_moves, self.MAX_DEPTH, -self.CHECKMATE, self.CHECKMATE, 1 if game_state.white_turn else -1)
-        print(counter)
+        print(f"{counter} movimientos evaluados")
         return_queue.put(next_move)
 
     def minmax_move(self, game_state, valid_moves, depth, white_turn):
