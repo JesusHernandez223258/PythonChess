@@ -1,3 +1,5 @@
+import numpy as np
+
 from settings import *
 from chess import GameState, Move
 from player_IA import Player
@@ -7,11 +9,10 @@ from multiprocessing import Process, Queue
 
 #  Preguntar promoción de peón. Problema: al validar movimientos pregunta infinitas veces
 #  a que se quiere promocionar antes de que se haga el movimiento
-# Separar check_events() en métodos
 # State list / state log. Lista con todos los estados del juego para asi poder volver al anterior
 # agregar notación para jaques
 # Mejorar la UI:
-# -Add 50 move draw and 3 move repeating draw rule
+# -3 move repeating draw rule
 # -Move ordering - look at checks, captures and threats first, prioritize castling/king safety, look at pawn moves last (this will improve alpha-beta pruning). Also start with moves that previously scored higher (will also improve pruning).
 # -Calculate both players moves given a position
 # -Change move calculation to make it more efficient. Instead of recalculating all moves, start with moves from previous board and change based on last move made
@@ -25,31 +26,37 @@ from multiprocessing import Process, Queue
 
 class Game:
     def __init__(self):
-        self.human_turn = None
-        self.images = {}
-        self.move_options = ""
-        self.move_capture = ""
-        self.title = TITLE
-        self.font = None
+        # Screen
         self.screen = pg.display.set_mode((BOARD_WIDTH + LOG_PANEL_WIDTH, BOARD_HEIGHT))
         self.screen.fill("White")
         self.clock = pg.time.Clock()
+        self.images = {}
+        self.font = None
+        self.title = TITLE
+        self.move_options_image = None
+        self.move_capture_image = None
+        # GameState
+        self.running = True
         self.game_state = GameState()
         self.valid_moves = self.game_state.get_valid_moves()
         self.move_made = False
         self.animate = False
-        self.running = True
         self.game_over = False
-        self.AI_player = Player()
-        self.player_one = True  # True: human white, False: human black
-        self.player_two = True  # True: IA white, False: IA black
         self.selected = ()
         self.clicks = []
-
+        self.moves_count = 0
+        self.state_log = [(self.game_state.board.copy(), self.game_state.white_turn, self.valid_moves.copy())]
+        self.repetition_counter = 0
+        self.end_info = ""
+        # IA
+        self.AI_player = Player()
+        self.human_turn = None
+        self.player_one = True  # True: human white, False: IA white
+        self.player_two = True  # True: human Black, False: IA black
         self.thinking = False  # True si la IA esta "Pensando", False si no lo está
+        self.move_undone = False
         self.move_finder_process = None
         self.return_queue = None
-        self.move_undone = False
 
     def load_images(self):
         """
@@ -58,12 +65,12 @@ class Game:
         pieces = ["bP", "bR", "bB", "bN", "bQ", "bK", "wP", "wR", "wB", "wN", "wQ", "wK"]
         for piece in pieces:
             self.images[piece] = pg.image.load(DIR+piece+".png")
-        self.move_options = pg.image.load(DIR+"option.png")
-        self.move_options.set_alpha(120)
-        self.move_capture = pg.image.load(DIR+"capture.png")
-        self.move_capture.set_alpha(120)
+        self.move_options_image = pg.image.load(DIR + "option.png")
+        self.move_options_image.set_alpha(120)
+        self.move_capture_image = pg.image.load(DIR + "capture.png")
+        self.move_capture_image.set_alpha(120)
 
-    def check_mouse(self, e):
+    def check_mouse(self):
         if not self.game_over:
             loc = pg.mouse.get_pos()
             col = loc[0] // SQ_SIZE
@@ -105,6 +112,9 @@ class Game:
             self.move_made = False
             self.animate = False
             self.game_over = False
+            self.moves_count = 0
+            self.state_log = []
+            self.repetition_counter = 0
             if self.thinking:
                 self.move_finder_process.terminate()
                 self.thinking = False
@@ -138,7 +148,7 @@ class Game:
             if e.type == pg.QUIT:
                 self.running = False
             elif e.type == pg.MOUSEBUTTONDOWN:
-                self.check_mouse(e)
+                self.check_mouse()
             elif e.type == pg.KEYDOWN:
                 self.check_keyboard(e)
 
@@ -153,10 +163,17 @@ class Game:
             self.move_made = False
             self.animate = False
             self.move_undone = False
+            # Regla de los 50 movimientos consecutivos
+            if len(self.game_state.move_log) >= 100:
+                self.fifty_moves_rule()
 
-        if self.game_state.checkmate or self.game_state.stalemate:
+            self.state_log.append((self.game_state.board.copy(), self.game_state.white_turn, self.valid_moves.copy()))
+            self.threefold_repetition()
+
+        # Dibujar texto final
+        if self.game_state.checkmate or self.game_state.stalemate or self.game_state.draw:
             self.game_over = True
-            text = "Stalemate" if self.game_state.stalemate else "Black wins by checkmate" \
+            text = "Stalemate" if self.game_state.stalemate else "Draw" if self.game_state.draw else "Black wins by checkmate" \
                 if self.game_state.white_turn else "White wins by checkmate"
             self.draw_end_text(text)
 
@@ -190,9 +207,9 @@ class Game:
                     if move.start_r == r and move.start_c == c:
                         color = "b" if self.game_state.white_turn else "w"
                         if self.game_state.board[move.end_r][move.end_c][0] == color:
-                            self.screen.blit(self.move_capture, (move.end_c*SQ_SIZE, move.end_r*SQ_SIZE))
+                            self.screen.blit(self.move_capture_image, (move.end_c * SQ_SIZE, move.end_r * SQ_SIZE))
                         else:
-                            self.screen.blit(self.move_options, (move.end_c*SQ_SIZE, move.end_r*SQ_SIZE))
+                            self.screen.blit(self.move_options_image, (move.end_c * SQ_SIZE, move.end_r * SQ_SIZE))
         if len(self.game_state.move_log) != 0:
             move = self.game_state.move_log[-1]
             self.screen.blit(s, (move.start_c*SQ_SIZE, move.start_r*SQ_SIZE))
@@ -272,6 +289,13 @@ class Game:
         text_object = font.render(text, False, pg.Color("black"))
         self.screen.blit(text_object, text_loc.move(2, 2))
 
+        text_object = self.font.render(self.end_info, True, pg.Color("grey"))
+        text_loc = pg.Rect(0, 0, BOARD_WIDTH, BOARD_HEIGHT).move(BOARD_WIDTH / 2 - text_object.get_width() / 2,
+                                                                 BOARD_HEIGHT / 2 - text_object.get_height() / 2)  # center text
+        self.screen.blit(text_object, text_loc.move(0, 40))
+        text_object = self.font.render(self.end_info, True, pg.Color("black"))
+        self.screen.blit(text_object, text_loc.move(0, 42))
+
     def animate_move(self, move):  # Reescribir código para no redibujar el tablero siempre
         """
         Anima los movimientos de las piezas
@@ -297,6 +321,30 @@ class Game:
             pg.display.flip()
             self.clock.tick(FPS)
 
+    def fifty_moves_rule(self):
+        """
+        Se encarga de verificar la regla de los 50 movimientos consecutivos sin capturas ni movimientos de peones
+        """
+        last_move = self.game_state.move_log[-1]
+        if last_move.piece_captured != "--" or last_move.piece_moved[1] == "P":
+            self.moves_count = 0
+        else:
+            self.moves_count += 1
+        if self.moves_count == 100:
+            self.game_state.draw = True
+            self.end_info = "50 consecutive moves without captures or pawn moves."
+
+    def threefold_repetition(self):
+        temp_state = self.state_log[-1]
+        for i in range(len(self.state_log) - 2, -1, -1):
+            if np.array_equiv(self.state_log[i][0], temp_state[0]) and self.state_log[i][1] == temp_state[1] and self.state_log[i][2] == temp_state[2]:
+                self.repetition_counter += 1
+        if self.repetition_counter == 3:
+            self.game_state.draw = True
+            self.end_info = "Draw for Threefold Repetition"
+        else:
+            self.repetition_counter = 0
+
     def draw_game_state(self):
         """
         Dibuja el estado del juego actual
@@ -306,6 +354,9 @@ class Game:
         self.draw_pieces()
         self.draw_move_log()
         self.check_opening()
+        # Chequear repetición de 3 states
+        #if len(self.state_log) > 1:
+        #    self.threefold_repetition()
 
     def main(self):
         """
