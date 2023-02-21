@@ -7,22 +7,6 @@ from openings import check_open
 import pygame as pg
 from multiprocessing import Process, Queue
 
-#  Preguntar promoción de peón. Problema: al validar movimientos pregunta infinitas veces
-#  a que se quiere promocionar antes de que se haga el movimiento
-# State list / state log. Lista con todos los estados del juego para asi poder volver al anterior
-# agregar notación para jaques
-# Mejorar la UI:
-# -3 move repeating draw rule
-# -Move ordering - look at checks, captures and threats first, prioritize castling/king safety, look at pawn moves last (this will improve alpha-beta pruning). Also start with moves that previously scored higher (will also improve pruning).
-# -Calculate both players moves given a position
-# -Change move calculation to make it more efficient. Instead of recalculating all moves, start with moves from previous board and change based on last move made
-# -Use a numpy array instead of 2d list of strings or store the board differently (maybe with bit boards:
-# https://www.chessprogramming.org/Bitboards
-# -Hash board positions already visited to improve computation time for transpositions.
-# https://en.wikipedia.org/wiki/Zobrist_hashing
-# -If move is a capture move, even at max depth, continue evaluating until no captures remain
-# https://www.chessprogramming.org/Quiescence_Search
-
 
 class Game:
     def __init__(self):
@@ -35,6 +19,7 @@ class Game:
         self.title = TITLE
         self.move_options_image = None
         self.move_capture_image = None
+        self.menu_open = False
         # GameState
         self.running = True
         self.game_state = GameState()
@@ -71,8 +56,8 @@ class Game:
         self.move_capture_image.set_alpha(120)
 
     def check_mouse(self):
-        if not self.game_over:
-            loc = pg.mouse.get_pos()
+        loc = pg.mouse.get_pos()
+        if not self.game_over and not self.menu_open:
             col = loc[0] // SQ_SIZE
             row = loc[1] // SQ_SIZE
             if self.selected == (row, col) or col > 7:
@@ -93,9 +78,15 @@ class Game:
                         self.clicks = []
                 if not self.move_made:
                     self.clicks = [self.selected]
+        if self.menu_open:
+            if quit_rect.colliderect(loc[0], loc[1], 1, 1):
+                self.running = False
+            if enemy_rect.colliderect(loc[0], loc[1], 1, 1):
+                self.reset()
+                self.player_two = True if not self.player_two else False
 
     def check_keyboard(self, e):
-        if e.key == pg.K_LCTRL:
+        if e.key == pg.K_LCTRL and not self.menu_open:
             self.game_state.undo_move()
             self.move_made = True
             self.animate = False
@@ -104,21 +95,18 @@ class Game:
                 self.move_finder_process.terminate()
                 self.thinking = False
             self.move_undone = True
+            self.state_log.pop()
         if e.key == pg.K_r:
-            self.game_state = GameState()
-            self.valid_moves = self.game_state.get_valid_moves()
-            self.selected = ()
-            self.clicks = []
-            self.move_made = False
-            self.animate = False
-            self.game_over = False
-            self.moves_count = 0
-            self.state_log = []
-            self.repetition_counter = 0
-            if self.thinking:
-                self.move_finder_process.terminate()
-                self.thinking = False
-            self.move_undone = True
+            self.reset()
+        if e.key == pg.K_TAB:
+            if self.menu_open:
+                self.menu_open = False
+            else:
+                self.menu_open = True
+            if self.menu_open:
+                print("Menu desplegado")
+            else:
+                print("Menu cerrado")
 
     def check_ia(self):
         if not self.thinking:
@@ -160,15 +148,17 @@ class Game:
             if self.animate:
                 self.animate_move(self.game_state.move_log[-1])
             self.valid_moves = self.game_state.get_valid_moves()
+            # Generar state log. No volver a generar uno repetido cuando se deshizo un movimiento
+            if not self.move_undone:
+                self.state_log.append((self.game_state.board.copy(), self.game_state.white_turn, self.valid_moves.copy()))
+            self.threefold_repetition()
+
             self.move_made = False
             self.animate = False
             self.move_undone = False
             # Regla de los 50 movimientos consecutivos
             if len(self.game_state.move_log) >= 100:
                 self.fifty_moves_rule()
-
-            self.state_log.append((self.game_state.board.copy(), self.game_state.white_turn, self.valid_moves.copy()))
-            self.threefold_repetition()
 
         # Dibujar texto final
         if self.game_state.checkmate or self.game_state.stalemate or self.game_state.draw:
@@ -345,6 +335,36 @@ class Game:
         else:
             self.repetition_counter = 0
 
+    def menu(self):
+        """
+        Dibuja el menu de opciones
+        """
+        menu_rect = pg.Rect(0, 0, MENU_WIDTH, MENU_HEIGHT)
+        pg.draw.rect(self.screen, pg.Color("GREY"), menu_rect)
+        menu_text_object = self.font.render("MENU", True, pg.Color("black"))
+        text_loc = pg.Rect(0, 0, MENU_WIDTH, MENU_HEIGHT).move(MENU_WIDTH / 2 - menu_text_object.get_width() / 2, 10)
+        self.screen.blit(menu_text_object, text_loc)
+
+        # Salir
+        global quit_rect
+        quit_rect = pg.Rect(20, MENU_HEIGHT-44, BUTTON_WIDTH, BUTTON_HEIGHT)
+        pg.draw.rect(self.screen, pg.Color("red"), quit_rect)
+        button_object = self.font.render("QUIT", True, pg.Color("black"))
+        button_loc = pg.Rect(20 + ((quit_rect.width - button_object.get_width()) / 2),
+                             MENU_HEIGHT-44 + ((quit_rect.height - button_object.get_height()) / 2),
+                             BUTTON_WIDTH, BUTTON_HEIGHT)
+        self.screen.blit(button_object, button_loc)
+
+        # Enemy
+        global enemy_rect
+        text = "IA" if self.player_two else "HUMAN"
+        button_object = self.font.render(text, True, pg.Color("black"))
+        enemy_rect = pg.Rect(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).move(20, MENU_HEIGHT / 2 - button_object.get_height() / 2 - 2)
+        pg.draw.rect(self.screen, pg.Color("white"), enemy_rect)
+        button_loc = pg.Rect(0, 0, BUTTON_WIDTH, BUTTON_HEIGHT).move(MENU_WIDTH / 2 - button_object.get_width() / 2,
+                                                                     MENU_HEIGHT / 2 - button_object.get_height() / 2)
+        self.screen.blit(button_object, button_loc)
+
     def draw_game_state(self):
         """
         Dibuja el estado del juego actual
@@ -354,9 +374,26 @@ class Game:
         self.draw_pieces()
         self.draw_move_log()
         self.check_opening()
-        # Chequear repetición de 3 states
-        #if len(self.state_log) > 1:
-        #    self.threefold_repetition()
+
+    def reset(self):
+        """
+        Resetea el juego completamente
+        """
+        self.game_state = GameState()
+        self.valid_moves = self.game_state.get_valid_moves()
+        self.selected = ()
+        self.clicks = []
+        self.move_made = False
+        self.animate = False
+        self.game_over = False
+        self.menu_open = False
+        self.moves_count = 0
+        self.state_log = [(self.game_state.board.copy(), self.game_state.white_turn, self.valid_moves.copy())]
+        self.repetition_counter = 0
+        if self.thinking:
+            self.move_finder_process.terminate()
+            self.thinking = False
+        self.move_undone = True
 
     def main(self):
         """
@@ -374,5 +411,7 @@ class Game:
             self.check_events()
             if not self.game_over:
                 self.draw_game_state()
+            if self.menu_open:
+                self.menu()
             self.clock.tick(FPS)
             pg.display.flip()

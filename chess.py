@@ -2,6 +2,7 @@ import numpy as np
 
 
 class GameState:
+
     def __init__(self):
         """
         Estado actual del juego
@@ -528,18 +529,6 @@ class GameState:
                 elif move.end_c == 7:
                     self.current_castling_rights.black_ks = False
 
-    # def fifty_move_rule(self):
-    #     """
-    #     Se encarga de verificar la regla de los 50 movimientos consecutivos sin capturas ni movimientos de peones
-    #     """
-    #     last_move = self.move_log[-1]
-    #     if last_move.piece_captured != "--" or last_move.piece_moved[1] == "P":
-    #         self.fifty_rule_moves = 0
-    #     else:
-    #         self.fifty_rule_moves += 1
-    #     if self.fifty_rule_moves == 100:
-    #         self.draw = True
-
 
 class CastleRights:
     """
@@ -561,7 +550,7 @@ class Move:
                   "e": 4, "f": 5, "g": 6, "h": 7}
     cols_files = {v: k for k, v in files_cols.items()}
 
-    def __init__(self, start, end, board, enpassant=False, castle=False):
+    def __init__(self, start, end, board, enpassant=False, castle=False):#, check=False, checkmate=False):
         """
         Crea un movimiento
         :param start: primer click
@@ -574,6 +563,9 @@ class Move:
         self.end_c = end[1]
         self.piece_moved = board[self.start_r][self.start_c]
         self.piece_captured = board[self.end_r][self.end_c]
+
+        # self.check = check
+        # self.checkmate = checkmate
 
         # pawn promotion
         self.pawn_promotion = (self.piece_moved == "wP" and self.end_r == 0) or \
@@ -621,17 +613,19 @@ class Move:
         """
         # castle move
         if self.castle_move:
-            return "O-O" if self.end_c == 6 else "O-O-O"
+            return "0-0" if self.end_c == 6 else "0-0-0"
 
         end = self.get_rank_file(self.end_r, self.end_c)
         # movimientos de peón
         if self.piece_moved[1] == "P":
             if self.piece_captured != "--":
+                if self.enpassant_move:
+                    return self.cols_files[self.start_c] + "x" + end + " e.p"
                 return self.cols_files[self.start_c] + "x" + end
+            elif self.end_r == 0 or self.end_r == 8:
+                return end + "Q"
             else:
                 return end
-
-            # promoción de peón
 
         # + para check move, # para checkmate
 
@@ -639,4 +633,10 @@ class Move:
         move_string = self.piece_moved[1]
         if self.piece_captured != "--":
             move_string += "x"
+        # if self.check:
+        #     return move_string + end + "+"
+        # if self.checkmate:
+        #     return move_string + end + "++"
         return move_string + end
+
+        # movimientos ambiguos
