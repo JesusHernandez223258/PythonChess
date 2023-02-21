@@ -529,6 +529,18 @@ class GameState:
                 elif move.end_c == 7:
                     self.current_castling_rights.black_ks = False
 
+    # def fifty_move_rule(self):
+    #     """
+    #     Se encarga de verificar la regla de los 50 movimientos consecutivos sin capturas ni movimientos de peones
+    #     """
+    #     last_move = self.move_log[-1]
+    #     if last_move.piece_captured != "--" or last_move.piece_moved[1] == "P":
+    #         self.fifty_rule_moves = 0
+    #     else:
+    #         self.fifty_rule_moves += 1
+    #     if self.fifty_rule_moves == 100:
+    #         self.draw = True
+
 
 class CastleRights:
     """
