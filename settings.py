@@ -13,3 +13,5 @@ DIR = "assets/"
 DARK = (119, 149, 86)
 LIGHT = (235, 246, 208)
 TITLE = "Python Chess Game"
+
+print(abs(-1))

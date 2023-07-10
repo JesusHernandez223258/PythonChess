@@ -174,7 +174,7 @@ class Game:
         """
         Dibuja tablero
         """
-        colors = [pg.Color(DARK), pg.Color(LIGHT)]
+        colors = [pg.Color(LIGHT), pg.Color(DARK)]
         for r in range(DIMS):
             for c in range(DIMS):
                 color = colors[(r+c) % 2]
