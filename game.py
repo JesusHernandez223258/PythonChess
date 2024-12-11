@@ -1,10 +1,12 @@
 import numpy as np
-
+import networkx as nx
+import matplotlib.pyplot as plt
+import pygame as pg
 from settings import *
 from chess import GameState, Move
+from player_Bot import Bot
 from player_IA import Player
 from openings import check_open
-import pygame as pg
 from multiprocessing import Process, Queue
 
 
@@ -33,7 +35,14 @@ class Game:
         self.state_log = [(self.game_state.board.copy(), self.game_state.white_turn, self.valid_moves.copy())]
         self.repetition_counter = 0
         self.end_info = ""
-        # IA
+        # bot
+        self.Bot_player = Bot()
+        self.bot_moved = False
+        # grafo
+        self.graph = nx.Graph()  # Crear el grafo vacío
+        self.move_nodes = []  # Lista para almacenar los nodos de los movimientos
+        self.graph_layout = None  # Para guardar la disposición de los nodos en el grafo
+        # player
         self.AI_player = Player()
         self.human_turn = None
         self.player_one = True  # True: human white, False: IA white
@@ -128,27 +137,50 @@ class Game:
             self.animate = True
             self.thinking = False
 
+    def check_bot(self):
+        # Verifica si es el turno del bot, si no está pensando, y si el juego no ha terminado
+        if not self.game_state.white_turn and not self.thinking and not self.game_state.checkmate and not self.game_state.stalemate and not self.bot_moved:
+            self.thinking = True
+            print("El bot está pensando...")
+        
+            # Obtener el siguiente movimiento del bot
+            bot_move = self.Bot_player.get_move(self.game_state)
+        
+            if bot_move:  # Verificar si el bot encontró un movimiento válido
+                self.game_state.make_move(bot_move)
+                self.move_made = True
+                self.animate = True
+            else:
+                print("El bot no pudo encontrar un movimiento válido.")
+        
+            # Indicar que el bot terminó de pensar y realizó su movimiento
+            self.thinking = False
+            self.bot_moved = True  # Marcar que el bot ya se movió en este turno
+
     def check_events(self):
         """
         Verifica eventos del teclado/mouse
         """
-        for e in pg.event.get():
-            if e.type == pg.QUIT:
-                self.running = False
-            elif e.type == pg.MOUSEBUTTONDOWN:
-                self.check_mouse()
-            elif e.type == pg.KEYDOWN:
-                self.check_keyboard(e)
+        if not self.game_state.white_turn and not self.game_state.checkmate and not self.game_state.stalemate:
+            # Si es el turno del bot, no esperamos eventos del mouse ni teclado, solo realizamos el movimiento del bot
+            self.check_bot()
+        else:
+            # Si no es el turno del bot, seguimos procesando los eventos de teclado y mouse
+            for e in pg.event.get():
+                if e.type == pg.QUIT:
+                    self.running = False
+                elif e.type == pg.MOUSEBUTTONDOWN:
+                    self.check_mouse()
+                elif e.type == pg.KEYDOWN:
+                    self.check_keyboard(e)
 
-        # AI move finder logic
-        if not self.game_over and not self.human_turn and not self.move_undone:
-            self.check_ia()
-
+        # Si se ha realizado un movimiento, reiniciar las variables de estado
         if self.move_made:
             if self.animate:
                 self.animate_move(self.game_state.move_log[-1])
             self.valid_moves = self.game_state.get_valid_moves()
-            # Generar state log. No volver a generar uno repetido cuando se deshizo un movimiento
+
+            # Actualizar el estado del registro de movimientos
             if not self.move_undone:
                 self.state_log.append((self.game_state.board.copy(), self.game_state.white_turn, self.valid_moves.copy()))
             self.threefold_repetition()
@@ -156,15 +188,19 @@ class Game:
             self.move_made = False
             self.animate = False
             self.move_undone = False
+            self.bot_moved = False  # Permitir que el bot se mueva en el próximo turno
+
             # Regla de los 50 movimientos consecutivos
             if len(self.game_state.move_log) >= 100:
                 self.fifty_moves_rule()
 
-        # Dibujar texto final
+        # Verificar el estado final del juego
         if self.game_state.checkmate or self.game_state.stalemate or self.game_state.draw:
             self.game_over = True
-            text = "Stalemate" if self.game_state.stalemate else "Draw" if self.game_state.draw else "Black wins by checkmate" \
-                if self.game_state.white_turn else "White wins by checkmate"
+            text = "Stalemate" if self.game_state.stalemate else \
+                "Draw" if self.game_state.draw else \
+                "Black wins by checkmate" if self.game_state.white_turn else \
+                "White wins by checkmate"
             self.draw_end_text(text)
 
         self.clock.tick(FPS)
@@ -402,16 +438,30 @@ class Game:
         pg.init()
         self.load_images()
         self.font = pg.font.SysFont("Arial", 22, False, False)
-
+    
         pg.display.set_caption(f"{self.title}-{self.clock.get_fps() :.1f}")
-
+    
         while self.running:
+            # Verificar si es el turno del humano o del bot
             self.human_turn = (self.game_state.white_turn and self.player_one) or \
                               (not self.game_state.white_turn and self.player_two)
-            self.check_events()
+    
+            # Si es el turno del bot, permitir que haga su movimiento automáticamente
+            if not self.game_state.white_turn and not self.thinking and not self.game_state.checkmate and not self.game_state.stalemate:
+                self.check_bot()  # Llamada para que el bot realice su movimiento
+    
+            # Ahora manejamos los eventos solo si es el turno del jugador humano
+            if self.human_turn:
+                self.check_events()  # Esto maneja la entrada de teclado y mouse para el jugador humano
+    
             if not self.game_over:
-                self.draw_game_state()
+                self.draw_game_state()  # Actualiza el estado del juego
+    
             if self.menu_open:
-                self.menu()
+                self.menu()  # Si hay un menú abierto, dibujarlo
+    
+            # Mantener la velocidad del juego
             self.clock.tick(FPS)
+    
+            # Actualizar la pantalla
             pg.display.flip()
